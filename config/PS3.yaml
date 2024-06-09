@@ -1,0 +1,25 @@
+# definition of controller axes and buttons
+
+buttons:
+  'L1': 4
+  'L2': 6
+  'R1': 5
+  'R2': 7
+  'square/X': 3
+  'circle/B': 1
+  'triangle/Y': 2
+  'cross/A': 0
+  'D_pad_up': 13
+  'D_pad_down': 14
+  'D_pad_left': 15
+  'D_pad_right': 16
+  'L3': 11
+  'R3': 12
+  'play/start': 9
+  'select/back': 8
+
+axes:
+  'left_vertical': 1
+  'left_horizontal': 0
+  'right_horizontal': 3
+  'right_vertical': 4
