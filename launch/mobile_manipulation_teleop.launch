@@ -16,12 +16,11 @@
         <param name="config_file" value="$(find mobile_manipulation_teleop)/config/gripper_config.yaml"/>
     </node>  
 
-    <node name="map_switcher_service" pkg="map_interaction" type="map_switcher_service.py" output="screen"/>
-    <node name="map_switch_interactive" pkg="map_interaction" type="map_switch_interactive.py" output="screen"/>
-
     <node name="vision_to_speech" pkg="mobile_manipulation_teleop" type="vision_to_speech.py" output="screen"/>
 
     <node name="mobile_manipulation_teleop" pkg="mobile_manipulation_teleop" type="mobile_manipulation_teleop.py" output="screen">
         <param name="config_file" value="$(find mobile_manipulation_teleop)/config/PS3.yaml"/>
     </node>
+
+    <include file="$(find map_interaction)/launch/map_interaction.launch"/>
 </launch>

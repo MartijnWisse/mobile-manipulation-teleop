@@ -15,7 +15,7 @@ buttons:
   'D_pad_right': 16
   'L3': 11
   'R3': 12
-  'play/start': 9
+  'start/play': 9
   'select/back': 8
 
 axes:

@@ -128,7 +128,7 @@ class MobileManipulationTeleop:
             if self.button_triggered('D_pad_down'):  self.playsound('hoei.wav',1)
             if self.button_triggered('D_pad_left'):  self.playsound('buzzer.wav',1)
             if self.button_triggered('D_pad_right'): self.playsound('correct.wav',1)
-            if self.button_triggered('play/start'):  self.speak_what_you_see()
+            if self.button_triggered('start/play'):  self.speak_what_you_see()
 
 
         # Atomic actions and services, controllable when right shoulder button (R1) is pressed
@@ -141,6 +141,7 @@ class MobileManipulationTeleop:
         # Mapping and vision commands, controllable when right trigger button (R2) is pressed 
         elif self.is_button_pressed('R2'):  # enable mapping and vision commands
             if self.button_triggered('select/back'): self.switch_map_interactively()
+            if self.button_triggered('start/play'):  self.save_map_interactively()
 
     def issue_motor_commands(self):
         # preserve bandwidth: only send arm commands when servo references have changed
@@ -187,6 +188,17 @@ class MobileManipulationTeleop:
             return response.success
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call to '/switch_map_interactively' failed: {e}")
+            return False
+
+    def save_map_interactively(self):
+        rospy.wait_for_service('/save_map_interactively')
+        try:
+            service = rospy.ServiceProxy('/save_map_interactively', Trigger)
+            response = service()
+            #rospy.loginfo(f"Service call to {service_name} succeeded: {response.success}, message: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Service call to '/save_map_interactively' failed: {e}")
             return False
 
     def playsound(self, wavfilename, volume):
