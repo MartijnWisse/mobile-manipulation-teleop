@@ -2,16 +2,21 @@
 
 import rospy
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import Float64MultiArray, String
 from mirte_msgs.msg import ServoPosition, WavCommand
 import yaml
 import copy
 from std_srvs.srv import Trigger
 import actionlib
+from actionlib_msgs.msg import GoalID
 from visual_servoing_action.msg import VisualServoAction, VisualServoGoal
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal, MoveBaseActionResult
 from std_msgs.msg import Empty
 from map_interaction.srv import SwitchMapInteractively, SwitchMapInteractivelyResponse
+from map_interaction.msg import InspectHolonomicAction, InspectHolonomicGoal
+import tf
+import math
 
 class MobileManipulationTeleop:
     def __init__(self):
@@ -46,6 +51,14 @@ class MobileManipulationTeleop:
         self.visual_servo_client.wait_for_server()
         self.visual_servo_running = False
 
+        # Inspect_holonomic client initialization
+        self.inspect_holonomic_client = actionlib.SimpleActionClient('inspect_holonomic', InspectHolonomicAction)
+        self.inspect_holonomic_running = False
+        self.listener = tf.TransformListener()
+
+        self.move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+        self.move_base_cancel_pub = rospy.Publisher('move_base/cancel', GoalID, queue_size=1)
+     
         # FSM Idle/Search toggle publisher
         self.fsm_idle_search_toggle_publisher = rospy.Publisher('/FSM_idle_search_toggle', Empty, queue_size=1)
 
@@ -136,12 +149,14 @@ class MobileManipulationTeleop:
             if self.button_triggered('circle/B'): self.pick_up_service()
             if self.button_triggered('square/X'): self.toggle_visual_servoing()
             if self.button_triggered('D_pad_left'): self.toggle_FSM_idle_state()
+            if self.button_triggered('D_pad_right'): self.toggle_inspect_holonomic()
 
 
         # Mapping and vision commands, controllable when right trigger button (R2) is pressed 
         elif self.is_button_pressed('R2'):  # enable mapping and vision commands
             if self.button_triggered('select/back'): self.switch_map_interactively()
             if self.button_triggered('start/play'):  self.save_map_interactively()
+            if self.button_triggered('cross/A'):     self.store_map_pose()
 
     def issue_motor_commands(self):
         # preserve bandwidth: only send arm commands when servo references have changed
@@ -201,6 +216,17 @@ class MobileManipulationTeleop:
             rospy.logerr(f"Service call to '/save_map_interactively' failed: {e}")
             return False
 
+    def store_map_pose(self):
+        rospy.wait_for_service('/store_map_pose')
+        try:
+            service = rospy.ServiceProxy('/store_map_pose', Trigger)
+            response = service()
+            #rospy.loginfo(f"Service call to {service_name} succeeded: {response.success}, message: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Service call to '/store_map_pose' failed: {e}")
+            return False
+
     def playsound(self, wavfilename, volume):
         rospy.loginfo(f"Playing sound: {wavfilename}")
         self.wav_command.wavfile = wavfilename
@@ -214,6 +240,7 @@ class MobileManipulationTeleop:
         rospy.loginfo("Canceling all goals")
         self.visual_servo_client.cancel_all_goals()
         self.visual_servo_running = False
+        self.move_base_cancel_pub.publish(GoalID())
 
     def tilt_wrist(self, directionstring):
         scale = 0.05  #TODO: get scale from parameter file
@@ -280,6 +307,48 @@ class MobileManipulationTeleop:
         rospy.loginfo("Visual servoing action finished with state: %d, result: %d", state, result.result)
         self.visual_servo_running = False
 
+    def toggle_inspect_holonomic(self):
+        self.inspect_holonomic_client.wait_for_server()
+        if self.inspect_holonomic_running:
+            rospy.loginfo("Cancelling inspect holonomic action...")
+            self.inspect_holonomic_client.cancel_goal()
+            self.inspect_holonomic_running = False
+        else:
+            rospy.loginfo("Starting inspect holonomic action...")
+            target_pose = self.get_target_pose()
+            if target_pose is not None:
+                goal = InspectHolonomicGoal(target_pose=target_pose)
+                self.inspect_holonomic_client.send_goal(goal, done_cb=self.inspect_holonomic_done_callback)
+                self.inspect_holonomic_running = True
+
+    def get_target_pose(self):
+        try:
+            now = rospy.Time.now()
+            self.listener.waitForTransform("/map", "/base_link", now, rospy.Duration(4.0))
+            (trans, rot) = self.listener.lookupTransform("/map", "/base_link", now)
+            
+            target_pose = PoseStamped()
+            target_pose.header.frame_id = "map"
+            target_pose.header.stamp = rospy.Time.now()
+            
+            # 0.7 meters in front of the robot
+            yaw = tf.transformations.euler_from_quaternion(rot)[2]
+            target_pose.pose.position.x = trans[0] + 0.7 * math.cos(yaw)
+            target_pose.pose.position.y = trans[1] + 0.7 * math.sin(yaw)
+            target_pose.pose.position.z = trans[2]
+            target_pose.pose.orientation.x = rot[0]
+            target_pose.pose.orientation.y = rot[1]
+            target_pose.pose.orientation.z = rot[2]
+            target_pose.pose.orientation.w = rot[3]
+            
+            return target_pose
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logerr("Failed to get current robot pose")
+            return None
+
+    def inspect_holonomic_done_callback(self, state, result):
+        rospy.loginfo("Inspect holonomic action finished with state: %d, result: %d", state, result.success)
+        self.inspect_holonomic_running = False
 
 
     def toggle_FSM_idle_state(self):
