@@ -27,6 +27,10 @@ class MobileManipulationTeleop:
         with open(config_file, 'r') as f:
             self.config = yaml.safe_load(f)
 
+        # Publisher for the /show_game_controller_layout topic
+        self.layout_publisher = rospy.Publisher('/show_game_controller_layout', String, queue_size=10)
+ 
+
         self.button_map = self.config['buttons']
         self.axis_map = self.config['axes']
         
@@ -73,6 +77,10 @@ class MobileManipulationTeleop:
         
         rospy.spin()
 
+    def publish_layout(self, layout_message):
+        self.layout_publisher.publish(layout_message)
+        #rospy.loginfo("Published: %s", layout_message)
+
     def button_triggered(self, button_name):
         button_id = self.button_map[button_name]
         if self.joydata.buttons[button_id] and not self.latched_states[button_id]:
@@ -98,6 +106,12 @@ class MobileManipulationTeleop:
         # Buttons can be triggers (execute action once, re-execute only after button has first been released) 
         # or they can execute actions repeatedly, or both.
         # Button names are 'PlayStationName/XBoxName'
+
+        # Showing the button layout on screen
+        if self.is_button_pressed('L1'): self.publish_layout('L1')
+        if self.is_button_pressed('L2'): self.publish_layout('L2')
+        if self.is_button_pressed('R1'): self.publish_layout('R1')
+        if self.is_button_pressed('R2'): self.publish_layout('R2')
 
 
         # Base and arm motions, controllable when left shoulder button (L1) is pressed 

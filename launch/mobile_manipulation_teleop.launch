@@ -24,4 +24,5 @@
 
     <include file="$(find map_interaction)/launch/map_interaction.launch"/>
     <node name="battery_status" pkg="mobile_manipulation_teleop" type="battery_status.py" output="screen"/>
+    <node name="show_controller_layout" pkg="mobile_manipulation_teleop" type="show_controller_layout.py"/>
 </launch>
